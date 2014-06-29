@@ -6,10 +6,8 @@ body,html ,	div,canvas {
 
 
 #wrapper {
-	position: absolute;
-	left: 50%;
-	top:50%;
-	width:960px;
+	position: relative;
+	width:800px;
 	height: 640px;
 	border: 2px solid #fff;
 
