@@ -25,8 +25,8 @@ function Game(width, height)
 	};
 	
 	//Iages and tiles used in game
-	this.tiles = {
-		//back: $('img-back'),
+	this.images = {
+		tiles: $('img-tiles'),
 		
 	};
 
@@ -52,7 +52,7 @@ function Game(width, height)
 			posY: 7,
 			x: 105,
 			y: 30+150,
-			color:'#ff0',
+			color:0,
 			speed:0,
 			acc:0.4
 		},{
@@ -62,7 +62,7 @@ function Game(width, height)
 			posY: 6,
 			x: 105,
 			y: 30+75,
-			color:'#f0f',
+			color:1,
 			speed:0,
 			acc:0.4
 		},{
@@ -72,7 +72,7 @@ function Game(width, height)
 			posY: 5,
 			x: 105,
 			y: 30,
-			color:'#fff',
+			color:2,
 			speed:0,
 			acc:0.4
 		}
@@ -149,6 +149,8 @@ Game.prototype = {
 			}
 		}
 
+		this.p
+
 		this.tiles.forEach(function(tile){
 			if(!tile.falling){
 				return;
@@ -202,13 +204,14 @@ Game.prototype = {
 
 	},
 
-	drawTile: function(x,y,color)
+	drawTile: function(x,y,tile)
 	{
-		this.layers.squares.setProperties({ fillStyle: color });
-		this.layers.squares.fillRect(
-			//20 + x * 75 + 10, 20 + y * 75  + 10,
-			x,y,
-			55,55
+		this.layers.squares.drawImage(
+			this.images.tiles,
+			100 * tile.color, 0,
+			100, 100,
+			x, y,
+			55, 55
 		);
 	},
 
@@ -219,7 +222,7 @@ Game.prototype = {
 		for(var i =0; i < this.tiles.length; i++)
 		{
 			tile = this.tiles[i];
-			this.drawTile(tile.x, tile.y, tile.color);
+			this.drawTile(tile.x, tile.y, tile);
 		}
 	},
 
