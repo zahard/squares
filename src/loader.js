@@ -4,6 +4,7 @@ var resources = [
 	'KeyboardManager',
 	'Layer',
 	'Circle',
+	'Tile',
 	'App'
 ];
 
