@@ -184,9 +184,7 @@ Game.prototype = {
 	{
 		var dirs = [
 			{x:0,y:1},
-			{x:0,y:-1},
-			{x:1,y:0},
-			{x:-1,y:0},
+			{x:1,y:0}
 		];
 		var color = tile.color;
 		var d;
@@ -198,39 +196,57 @@ Game.prototype = {
 		{
 			var comboStep = 1;
 			d = dirs[i];
+			var comboTiles = [{
+				x:tile.gridX,
+				y:tile.gridY,
+			}];
+
 			while( t = this.getTile(tile.gridX + comboStep*d.x, tile.gridY + comboStep * d.y) )
 			{
-				if(t.color != color) {
+				if( t && t.color != color) {
 					break;
 				}
-
+				
+				comboTiles.push({
+					x: tile.gridX + comboStep*d.x,
+					y: tile.gridY + comboStep*d.y
+				});
 				comboStep++;
 			}
 
-			if(comboStep > 2) {
-				foundCombos.push({
-					dx: d.x,
-					dy: d.y,
-					combo: comboStep
-				})
+			//Check in reverse direction
+			
+			var reverseStep = 1;
+			while( t = this.getTile(tile.gridX - reverseStep*d.x, tile.gridY - reverseStep * d.y) ) {
+				if(t.color != color) {
+					break;
+				}
+				comboTiles.push({
+					x: tile.gridX - reverseStep*d.x,
+					y: tile.gridY - reverseStep*d.y
+				});
+				reverseStep++;
+			}
+
+			if( comboTiles.length > 2 ) {
+				foundCombos.push(comboTiles)
 			}
 		}
 
 		if (foundCombos.length)
 		{
-			tile.empty = true;
-			var updateCols = [tile.gridX];
+			console.log(foundCombos)
+			var updateCols = [];
 
 			for(var i = 0; i < foundCombos.length; i++)
 			{
-				var c = foundCombos[i];
+				var combo = foundCombos[i];
 				var gx,gy;
 
-				for(var combo = 1; combo < c.combo; combo++) {
-					gy = tile.gridY + combo * c.dy;
-					gx = tile.gridX + combo * c.dx,
-					this.getTile(gx, gy).empty = true; 
-					updateCols.push(gx);
+				for(var c = 0; c < combo.length; c++)
+				{
+					this.getTile(combo[c].x, combo[c].y).empty = true; 
+					updateCols.push(combo[c].x);
 				}
 			}
 
