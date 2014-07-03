@@ -23,6 +23,8 @@ function Game(width, height)
 		back:   new Layer( $('back'), width, height, 1),
 		squares:  new Layer( $('squares'), width, height, 2),
 		cursor:  new Layer( $('cursor'), width, height, 3),
+		scores:  new Layer( $('scores'), width, height, 2),
+		timer:  new Layer( $('timer'), width, height, 2)
 	};
 	
 	//Iages and tiles used in game
@@ -37,22 +39,14 @@ function Game(width, height)
 	};
 	
 
-	this.loadLevel(0);
+	this.drawBackground();
 
 	this.addListeners();
 
-	this.drawBackground();
 
-	this.diff = 0;
+	this.loadLevel(0);
 
-	this.generateTiles();
-
-	this.acc = 0.3;
-
-	this.swapSpeed = 4;
-	this.fastSwapSpeed = 6;
-
-	this.updateColsTiles([0,1,2,3,4,5,6,7]);
+	
 
 	this.animate();
 }
@@ -64,6 +58,29 @@ Game.prototype = {
 		//plateB: '#a3bbe0',
 		plateB: '#373b5b'
 	},
+
+	level: null,
+
+	levels: [
+		{
+			colors: [0,1,2,3,4,5],
+			tileScore: 5,
+			size: 8,
+			time:200
+		},
+		{
+			colors: [4,5,6,7,8,9],
+			tileScore: 5,
+			size: 8,
+			time:90
+		}
+	],
+
+	acc: 0.3,
+
+	swapSpeed: 4,
+
+	fastSwapSpeed: 6,
 
 	scores: 0,
 
@@ -88,6 +105,12 @@ Game.prototype = {
 
 	swappingTiles: [],
 
+	timerTimeout: null,
+	
+	timer:0,
+
+	lastAction: new Date().getTime(),
+
 	//Add columnto update list
 	//Used when some tile explode and we need add new tiles
 	//and make fall animation of existing
@@ -110,14 +133,91 @@ Game.prototype = {
 
 	loadLevel: function(levelNum)
 	{	
-		
+		if (typeof this.levels[levelNum] !== 'undefined')
+		{
+			this.level = this.levels[levelNum];	
+		}
+		else
+		{
+			this.level = this.levels[0];		
+		}
+
+		this.resetTimer();
+
+		this.drawScores();
+		this.drawTimer();
+		this.generateTiles();
+		this.updateColsTiles([0,1,2,3,4,5,6,7]);
 	},
+
+	resetTimer: function()
+	{
+		this.timer = this.level.time;
+		this.updateTimer();
+	},
+
+	updateTimer: function()
+	{
+		this.timer--;
+		if(this.timer < 0)
+		{
+			this.timer = 0;
+			//Trigger fiish time
+		}
+
+		this.drawTimer();
+
+		this.timerTimeout = setTimeout(function(){
+			this.updateTimer();
+		}.bind(this),1000);
+	},
+
+	generateTiles: function()
+	{
+		this.tiles = [];
+		for (var x=0;x<8;x++)
+		{
+			this.tiles[x] = [];
+			for (var y=0;y<8;y++)
+			{
+				this.tiles[x][y] = this.generateEmptyTile(x,y);
+			}
+		}
+
+	},
+
+	generateTile: function(x,y)
+	{
+		var colorIdx = rand(0,this.level.colors.length-1);
+		var color = this.level.colors[colorIdx];
+		return new Tile(color,x,y);
+	},
+
+	generateEmptyTile: function(x,y)
+	{
+		var t = new Tile(0,x,y);
+		t.empty = true;
+		return t;
+	},
+
 
 	animate: function()
 	{
 		if (this.update())
 		{
 			this.draw();
+		}
+
+		if( this.updateScores)
+		{
+			this.updateScores = false;
+			this.drawScores();
+		}
+
+		var now = new Date().getTime();
+		//10 sec timeout for advice
+		if( this.lastAction &&  now - this.lastAction > 10000) {
+			this.advice();
 		}
 
 		setTimeout(function() {
@@ -182,7 +282,7 @@ Game.prototype = {
 
 	checkComboQueue: [],
 
-	checkForCombo: function(tile)
+	checkForCombo: function(tile, forAdvice)
 	{
 		// if( this.comboIsRunning ) {
 		// 	this.checkComboQueue.push(tile);
@@ -193,8 +293,8 @@ Game.prototype = {
 			{x:0,y:1},
 			{x:1,y:0}
 		];
-		var color = tile.color;
-		var d,t;
+		var color = tile.adviceColor ? tile.adviceColor : tile.color;
+		var d,t,t_color;
 
 		var foundCombos = []
 
@@ -212,7 +312,8 @@ Game.prototype = {
 
 			while( t = this.getTile(tile.gridX + comboStep*d.x, tile.gridY + comboStep * d.y) )
 			{
-				if (!t || t.falling || t.color != color)
+				t_color = t.adviceColor ? t.adviceColor : t.color;
+				if (!t || t.falling || t_color != color)
 				{
 					break;
 				}
@@ -227,8 +328,10 @@ Game.prototype = {
 			//Check in reverse direction
 			
 			var reverseStep = 1;
-			while( t = this.getTile(tile.gridX - reverseStep*d.x, tile.gridY - reverseStep * d.y) ) {
-				if (!t || t.falling || t.color != color)
+			while( t = this.getTile(tile.gridX - reverseStep*d.x, tile.gridY - reverseStep * d.y) )
+			{
+				t_color = t.adviceColor ? t.adviceColor : t.color;
+				if (!t || t.falling || t_color != color)
 				{
 					break;
 				}
@@ -246,7 +349,12 @@ Game.prototype = {
 			}
 		}
 
-		if (foundCombos.length)
+		if( forAdvice )
+		{
+			return foundCombos;
+		}
+
+		if (foundCombos.length )
 		{
 			var updateCols = [];
 
@@ -257,7 +365,9 @@ Game.prototype = {
 
 				for(var c = 0; c < combo.length; c++)
 				{
-					this.getTile(combo[c].x, combo[c].y).empty = true; 
+					//Update scores
+					this.getTile(combo[c].x, combo[c].y).empty = true;
+					this.addScoreForCombo(combo.length);
 					updateCols.push(combo[c].x);
 				}
 			}
@@ -276,19 +386,19 @@ Game.prototype = {
 	runCombo: function()
 	{
 		console.log('RUN COMBO')
+		this.DISABLE_MOUSE = true;
 		this.comboIsRunning = true;
 	},
 
 	endCombo: function()
 	{
 		console.log('END COMBO')
-
-		
 		for(var i=0; i<this.colsToCheck.length;i++)
 		{
 			this.checkColumnForCombo(this.colsToCheck[i]);
 		}
 
+		this.DISABLE_MOUSE = false;
 		this.comboIsRunning = false;
 	},
 
@@ -301,6 +411,84 @@ Game.prototype = {
 				break;
 			}
 		}
+	},
+
+	addScoreForCombo: function(comboLength)
+	{
+		var scoreForTile = this.level.tileScore;
+		if (comboLength > 3)
+		{
+			scoreForTile = Math.round(scoreForTile * comboLength/2);
+		}
+
+		this.scores += scoreForTile;
+		this.updateScores = true;
+	},
+
+	advice: function()
+	{
+		this.hideAdvice();
+		for(var x = 0; x < 8; x++)
+		{
+			for(var y = 7; y >= 0; y--)
+			{
+				if( this.checkPossibleCombo(x,y) )
+				{
+					//console.log('Advice is ' + x +' '+y)
+					this.showAdvice(x,y);
+					return;
+				}
+			}
+		}
+	},
+
+	hideAdvice: function()
+	{
+		this.drawAdvice = false;
+		this.drawActiveTile();
+	},
+
+	showAdvice: function(x,y)
+	{
+		this.drawAdvice = {x:x,y:y};		
+		this.drawActiveTile();
+	},
+
+	checkPossibleCombo: function(x,y)
+	{
+		var tile = this.getTile(x,y);
+		var originColor = tile.color;
+		var dx, dy, t;
+		var comboA,comboB;
+
+		for(var dx = -1; dx < 1; dx +=1)
+		{
+			for(var dy = -1; dy <= 1; dy +=1)
+			{
+				if( Math.abs(dy + dx) != 1)
+				{
+					continue;
+				}
+
+				t = this.getTile(x+dx, y+dy);
+				if(t) {
+					tile.color = t.color;
+					t.color = originColor;
+
+					comboA = this.checkForCombo(tile,true);
+					comboB = this.checkForCombo(t,true);
+					
+					t.color = tile.color;
+					tile.color = originColor;
+
+					if( comboA.length || comboB.length)
+					{
+						return true;
+					}
+				}		
+			}	
+		}
+
 	},
 
 	onTileFall: function(tile)
@@ -449,6 +637,13 @@ Game.prototype = {
 				}
 
 				tile.speedY += this.acc;
+
+				//Max spped
+				if (tile.speedY > 20) {
+					tile.speedY = 20;
+				}
+
+
 				tile.y += tile.speedY;
 				if (tile.y >= tile.gridY * 75 + 30)
 				{
@@ -526,6 +721,9 @@ Game.prototype = {
 					var comboA = this.checkForCombo(tileA);
 					var comboB = this.checkForCombo(tileB);
 					if(comboA || comboB) {
+						if( this.drawAdvice ) {
+							this.hideAdvice();
+						}
 
 					} else {
 						game.swapTiles(tileB, tileA, true);	
@@ -552,17 +750,22 @@ Game.prototype = {
 
 	click: function()
 	{
+		//Disable mouse when falling 
+		if (this.DISABLE_MOUSE)
+		{
+			return;
+		}
+
 		if(this.activeTile) {
 
 			if( this.selectedTile ) {
 				
+				this.lastAction = new Date().getTime();
 
 				this.swapTiles(
 					this.getTile(this.selectedTile.x,this.selectedTile.y),
 					this.getTile(this.activeTile.x,this.activeTile.y)
 				);
-
-
 
 				this.selectedTile = null;
 
@@ -582,32 +785,7 @@ Game.prototype = {
 		}
 	},
 
-	generateTiles: function()
-	{
-		this.tiles = [];
-		for (var x=0;x<8;x++)
-		{
-			this.tiles[x] = [];
-			for (var y=0;y<8;y++)
-			{
-				this.tiles[x][y] = this.generateEmptyTile(x,y);
-			}
-		}
-
-	},
-
-	generateTile: function(x,y)
-	{
-		return new Tile(rand(0,5),x,y);
-	},
-
-	generateEmptyTile: function(x,y)
-	{
-		var t = new Tile(0,x,y);
-		t.empty = true;
-		return t;
-	},
-
+	
 	drawBackground: function()
 	{
 		//Draw levelx
@@ -672,6 +850,17 @@ Game.prototype = {
 		
 		this.layers.cursor.empty();
 
+		if( this.drawAdvice ) {
+			this.layers.cursor.setProperties({ fillStyle: '#5F5' });
+			this.layers.cursor.fillRect(
+				20+75*this.drawAdvice.x, 20 + 75*this.drawAdvice.y,75,75
+			);
+
+			this.layers.cursor.clearRect(
+				25+75*this.drawAdvice.x, 25 + 75*this.drawAdvice.y,65,65
+			);
+		}
+
 		if( this.selectedTile ) {
 			this.layers.cursor.setProperties({ fillStyle: '#fc0' });
 			this.layers.cursor.fillRect(
@@ -682,6 +871,10 @@ Game.prototype = {
 				25+75*this.selectedTile.x, 25 + 75*this.selectedTile.y,65,65
 			);
 		}
+
+
+		
+
 
 		if( this.activeTile ) {
 			this.layers.cursor.setProperties({ fillStyle: '#fff' });
@@ -695,6 +888,54 @@ Game.prototype = {
 		}
 	},
 
+
+	drawScores: function()
+	{
+		this.layers.scores.empty();
+		
+		this.layers.scores.setProperties({
+			font: 'bold 30px Arial',
+			fillStyle: 'yellow'
+		});
+
+		this.layers.scores.fillText('Scores',650,150);
+
+		this.layers.scores.setProperties({
+			font: 'bold 40px Arial',
+			fillStyle: '#fff'
+		});
+
+		this.layers.scores.fillText(this.scores,650,200);
+	},
+
+	drawTimer: function()
+	{
+		this.layers.timer.empty();
+		this.layers.timer.setProperties({
+			font: 'bold 30px Arial',
+			fillStyle: 'yellow'
+		});
+
+		this.layers.timer.fillText('Time',650,70);
+
+		this.layers.timer.setProperties({
+			font: 'bold 40px Arial',
+			fillStyle: '#fff'
+		});
+
+		this.layers.timer.fillText(this.formatTime(this.timer),650,110);
+	},
+
+	formatTime: function(time)
+	{
+		var t = Math.floor(time/60) + ':';
+		var min = (time%60);
+		if (min < 10)
+		{
+			min = '0' + min
+		}
+		return t + min;
+	},
 
 	addListeners: function()
 	{	
