@@ -2,16 +2,24 @@
 window.onload = function()
 {
 	window.game = new Game(800,640,{
-		acc: 0.3,
+		acc: 0.5,
 		swapSpeed: 4,
 		fastSwapSpeed: 6,
 		adviceTimeout: 10000,
 		levels:[
 			{
+				colors: [6,7,8,9],
+				tileScore: 5,
+				winScore: 2000,
+				sizeX: 7,
+				sizeY: 7,
+				time: 90
+			},
+			{
 				colors: [0,1,2,3,4,5],  // tiles variations 
 				winScore: 1500, //Score for winning
 				tileScore: 5, //
-				sizeX: 8, // Horizontal cells number
+				sizeX: 5, // Horizontal cells number
 				sizeY: 8, // Vertical cells number
 				time: 200 // Time for win
 			},
@@ -20,9 +28,10 @@ window.onload = function()
 				tileScore: 5,
 				winScore: 2000,
 				sizeX: 6,
-				sizeY: 6,
+				sizeY: 4,
 				time: 90
 			}
+			
 		]
 	});
 
@@ -250,17 +259,17 @@ Game.prototype = {
 
 		},
 		
-		tilesExplode: function() {
+		tilesExplode: function(combo) {
 
 		},
 
-		comboExplode: function() {
+		comboExplode: function(combos) {
 			this.comboSize++;
 		},
 
 		multiComboEnd: function(comboSize)
-		{
-			if(comboSize > this.maxCombo)
+		{	
+			if( comboSize > this.maxCombo)
 			{
 				this.maxCombo = comboSize;
 				this.drawMaxCombo();
@@ -296,7 +305,7 @@ Game.prototype = {
 
 		if( typeof this.events[event] !== 'undefined')
 		{
-			this.events[event].call(this, args.slice(1));
+			this.events[event].apply(this, args.slice(1));
 		}
 	},
 
@@ -325,6 +334,9 @@ Game.prototype = {
 	*/
 	loadLevel: function(levelNum)
 	{	
+
+		this.layers.cursor.empty();
+
 		if (typeof this.levels[levelNum] !== 'undefined')
 		{
 			this.level = this.levels[levelNum];	
@@ -335,7 +347,20 @@ Game.prototype = {
 		}
 
 		
-		this.cellSize = Math.floor(this.gridWidth / this.level.sizeX);
+		if (this.level.sizeX > this.level.sizeY)
+		{
+			this.cellSize = Math.floor(this.gridWidth / this.level.sizeX);
+		}
+		else if (this.level.sizeX < this.level.sizeY)
+		{
+			this.cellSize = Math.floor(this.gridWidth / this.level.sizeY);
+		}
+		else
+		{
+			this.cellSize = Math.floor(this.gridWidth / this.level.sizeX);
+		}
+		
+
 		this.tilePadding = 10;
 		this.tileSize = this.cellSize - 2 * this.tilePadding;
 
@@ -361,7 +386,7 @@ Game.prototype = {
 		this.draw();
 
 		var cols = [];
-		for(var i = 0; i < this.level.sizeY;i++)
+		for(var i = 0; i < this.level.sizeX;i++)
 		{
 			cols.push(i);
 		}
@@ -505,6 +530,15 @@ Game.prototype = {
 		if (w % 2 != 0) w++;
 		if (h % 2 != 0) h++;
 
+		if (w > h)
+		{
+			h = w;
+		}
+		else if(w < h)
+		{
+			w = h;
+		}
+
 		var base = [
 			[w/2-1,h/2-1],
 			[w/2-1,h/2],
@@ -569,6 +603,7 @@ Game.prototype = {
 			x = w/2-(level+1);
 			this.addStartTile(this.generateTile(x,y));
 		}
+
 	},
 
 	/**
@@ -780,23 +815,38 @@ Game.prototype = {
 		{
 			var updateCols = [];
 
+			var realCombos = 0;
+
 			for(var i = 0; i < foundCombos.length; i++)
 			{
 				var combo = foundCombos[i];
 				var gx,gy;
 
+				var comboreal = true;
 				for(var c = 0; c < combo.length; c++)
 				{
-					//Update scores
-					this.getTile(combo[c].x, combo[c].y).empty = true;
-					this.addScoreForCombo(combo.length);
-					updateCols.push(combo[c].x);
+					if ( ! this.getTile(combo[c].x, combo[c].y).empty)
+					{
+						//Update scores
+						this.getTile(combo[c].x, combo[c].y).empty = true;
+						this.addScoreForCombo(combo.length);
+						updateCols.push(combo[c].x);
+					} else {
+						comboreal = false;
+					}
 				}
 
-				this.trigger('tilesExplode', combo);
+				if (comboreal)
+				{
+					realCombos++;
+					this.trigger('tilesExplode', combo);
+				}
 			}
 
-			this.trigger('comboExplode', combo);
+			if (realCombos)
+			{
+				this.trigger('comboExplode', foundCombos);
+			}
 
 			this.runCombo();
 			this.updateColsTiles(updateCols);
@@ -1008,6 +1058,7 @@ Game.prototype = {
 						}
 
 					} else {
+						column[y].speedY = 0;
 						newColumn.push(column[y]);
 					}
 
@@ -1108,11 +1159,11 @@ Game.prototype = {
 					}
 				}
 
-				tile.speedY += this.acc;
+				tile.speedY = tile.speedY + this.acc;
 
 				//Max speed
-				if (tile.speedY > 20) {
-					tile.speedY = 20;
+				if (tile.speedY > 10) {
+					tile.speedY = 10;
 				}
 
 
@@ -1256,6 +1307,8 @@ Game.prototype = {
 	*/
 	drawBackground: function()
 	{
+		this.layers.back.empty();
+
 		this.layers.back.setProperties({ fillStyle: '#777' });
 		this.layers.back.fillRect(
 			0,0,this.width,this.height
@@ -1415,7 +1468,7 @@ Game.prototype = {
 	drawMaxCombo: function()
 	{
 
-		$('combo-value').innerHTML = this.moves;
+		$('combo-value').innerHTML = this.maxCombo;
 	},
 
 	/**

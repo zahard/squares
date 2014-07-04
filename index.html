@@ -22,8 +22,9 @@
 			<div id="el-moves" class="info-display">Moves<br><span id="moves-value" ><span></div>
 			<div id="el-combo" class="info-display">Combo<br><span id="combo-value" ><span></div>
 
-			<input id="l1" type="button" value="Level 1" style="position: absolute;width:17%;height:10%;left: 80%;bottom: 20%;z-index: 20;"/>
-			<input id="l2" type="button" value="Level 2" style="position: absolute;width:17%;height:10%;left: 80%;bottom: 5%;z-index: 20;"/>
+			<input id="l1" type="button" value="Level 1" style="position: absolute;width:17%;height:7%;left: 80%;bottom: 20%;z-index: 20;"/>
+			<input id="l2" type="button" value="Level 2" style="position: absolute;width:17%;height:7%;left: 80%;bottom: 12%;z-index: 20;"/>
+			<input id="l3" type="button" value="Level 3" style="position: absolute;width:17%;height:7%;left: 80%;bottom: 4%;z-index: 20;"/>
 
 		</div>
 
@@ -35,6 +36,9 @@
 		})
 		$('l2').addEventListener('click',function(){
 			window.game.loadLevel(1);
+		})
+		$('l3').addEventListener('click',function(){
+			window.game.loadLevel(2);
 		})
 		</script>
 
