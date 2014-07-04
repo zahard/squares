@@ -5,7 +5,7 @@ window.onload = function()
 
 	//Fix android browsers bug
 	setTimeout(function(){
-		//game.onResize();	
+		game.onResize();	
 	},100)
 }
 
@@ -142,6 +142,11 @@ Game.prototype = {
 			this.level = this.levels[0];		
 		}
 
+		this.colsToUpdate = [];
+		this.fallingTiles = [];
+		this.swappingTiles = [];
+		this.checkComboQueue = [];
+
 		this.resetTimer();
 
 		this.drawScores();
@@ -152,6 +157,7 @@ Game.prototype = {
 
 	resetTimer: function()
 	{
+		clearTimeout(this.timerTimeout);
 		this.timer = this.level.time;
 		this.updateTimer();
 	},
@@ -245,6 +251,11 @@ Game.prototype = {
 
 
 	swapTiles: function(tileA, tileB, reverse) {
+		if (! tileA || ! tileB) 
+		{
+			return;
+		}
+
 		var y_diff = tileA.gridY - tileB.gridY;
 		var x_diff = tileA.gridX - tileB.gridX;
 
@@ -385,14 +396,12 @@ Game.prototype = {
 
 	runCombo: function()
 	{
-		console.log('RUN COMBO')
 		this.DISABLE_MOUSE = true;
 		this.comboIsRunning = true;
 	},
 
 	endCombo: function()
 	{
-		console.log('END COMBO')
 		for(var i=0; i<this.colsToCheck.length;i++)
 		{
 			this.checkColumnForCombo(this.colsToCheck[i]);
@@ -603,7 +612,6 @@ Game.prototype = {
 		{
 			for(var i = 0; i < this.checkComboQueue.length; i++)
 			{
-				console.log('Check combo for queue ' + this.checkComboQueue[i].gridX + ' ' + this.checkComboQueue[i].gridY);
 				this.checkForCombo( this.checkComboQueue[i]);
 			}
 
@@ -769,8 +777,6 @@ Game.prototype = {
 
 				this.selectedTile = null;
 
-				console.log('swap check for combo and reverse if no')
-
 			} else {
 				this.selectedTile = {
 					x: this.activeTile.x,
@@ -891,39 +897,13 @@ Game.prototype = {
 
 	drawScores: function()
 	{
-		this.layers.scores.empty();
-		
-		this.layers.scores.setProperties({
-			font: 'bold 30px Arial',
-			fillStyle: 'yellow'
-		});
-
-		this.layers.scores.fillText('Scores',650,150);
-
-		this.layers.scores.setProperties({
-			font: 'bold 40px Arial',
-			fillStyle: '#fff'
-		});
-
-		this.layers.scores.fillText(this.scores,650,200);
+		$('scores-value').innerHTML = this.scores
 	},
 
 	drawTimer: function()
 	{
-		this.layers.timer.empty();
-		this.layers.timer.setProperties({
-			font: 'bold 30px Arial',
-			fillStyle: 'yellow'
-		});
 
-		this.layers.timer.fillText('Time',650,70);
-
-		this.layers.timer.setProperties({
-			font: 'bold 40px Arial',
-			fillStyle: '#fff'
-		});
-
-		this.layers.timer.fillText(this.formatTime(this.timer),650,110);
+		$('timer-value').innerHTML = this.formatTime(this.timer);
 	},
 
 	formatTime: function(time)
@@ -1030,6 +1010,32 @@ Game.prototype = {
 
 	onResize: function()
 	{
+
+		var widthToHeight = 5/4;
+		var newWidth = window.innerWidth;
+		var newHeight = window.innerHeight;
+
+		console.log( newHeight );
+		console.log( newWidth );
+
+		var newWidthToHeight = newWidth / newHeight;
+
+		if (newWidthToHeight > widthToHeight) {
+			newWidth = newHeight * widthToHeight;
+			this.wrapper.style.height = newHeight + 'px';
+			this.wrapper.style.width = newWidth + 'px';
+		} else {
+			newHeight = newWidth / widthToHeight;
+			this.wrapper.style.width = newWidth + 'px';
+			this.wrapper.style.height = newHeight + 'px';
+		}
+
+		this.wrapper.style.marginTop = (-newHeight / 2) + 'px';
+		this.wrapper.style.marginLeft = (-newWidth / 2) + 'px';
+
+
+		$('el-timer').style.fontSize = (newWidth * 0.04) + 'px';
+		$('el-scores').style.fontSize = (newWidth * 0.04) + 'px';
 
 		this.offsetTop = this.wrapper.offsetTop;
 		this.offsetLeft = this.wrapper.offsetLeft;

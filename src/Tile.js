@@ -3,7 +3,7 @@ function Tile(color,x,y) {
 	this.color = color;
 	this.gridX = x;
 	this.gridY = y;
-	this.x = 30 + x*75;
+	this.x = 20 + 10 + x * 75;
 }
 
 Tile.prototype = {
