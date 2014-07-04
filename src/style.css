@@ -3,6 +3,13 @@ body,html ,	div,canvas {
 	padding: 0;
 }
 
+#el-combo {
+	top:50%;
+}
+
+#el-moves {
+	top:35%;
+}
 
 #el-scores {
 	top:20%;

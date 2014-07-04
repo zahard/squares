@@ -3,7 +3,7 @@ function Tile(color,x,y) {
 	this.color = color;
 	this.gridX = x;
 	this.gridY = y;
-	this.x = 20 + 10 + x * 75;
+	this.x = this.getX();
 }
 
 Tile.prototype = {
@@ -24,5 +24,15 @@ Tile.prototype = {
 	
 	color:0,
 
-	foundUpper: false
+	foundUpper: false,
+
+	getY: function()
+	{
+		return this.gridY * Tile.app.cellSize + Tile.app.tilePadding + Tile.app.padding;
+	},
+
+	getX: function()
+	{
+		return this.gridX * Tile.app.cellSize + Tile.app.tilePadding + Tile.app.padding;
+	}
 }
