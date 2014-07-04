@@ -1,24 +1,54 @@
 
 window.onload = function()
 {
-	window.game = new Game(800,640);
+	window.game = new Game(800,640,{
+		acc: 0.3,
+		swapSpeed: 4,
+		fastSwapSpeed: 6,
+		adviceTimeout: 10000,
+		levels:[
+			{
+				colors: [0,1,2,3,4,5],  // tiles variations 
+				winScore: 1500, //Score for winning
+				sizeX: 8, // Horizontal cells number
+				sizeY: 8, // Vertical cells number
+				time: 200 // Time for win
+			},
+			{
+				colors: [6,7,8,9],
+				tileScore: 5,
+				winScore: 2000,
+				sizeX: 8,
+				sizeY: 8,
+				time: 90
+			}
+		]
+	});
 
 	//Fix android browsers bug
 	setTimeout(function(){
-		game.onResize();	
+		game.onResize();
 	},100)
 }
 
-function Game(width, height)
+function Game(width, height,options)
 {
 	this.width = width;
 	this.height = height;
 
+	for(var opt in options)
+	{
+		this[opt] = options[opt];
+	}
+
+	//game wrapper
 	this.wrapper = $('wrapper');
 	
 	this.offsetTop = this.wrapper.offsetTop;
 	this.offsetLeft = this.wrapper.offsetLeft;
 
+
+	//Canvas layers
 	this.layers = {
 		back:   new Layer( $('back'), width, height, 1),
 		squares:  new Layer( $('squares'), width, height, 2),
@@ -38,80 +68,154 @@ function Game(width, height)
 		//name: $('id-of-audio'),
 	};
 	
-
+	//Draw game background
 	this.drawBackground();
-
+	//Attach listeners
 	this.addListeners();
 
-
+	//Start game
 	this.loadLevel(0);
 
-	
-
+	//Start game loop
 	this.animate();
+
+	this.trigger('gameStart');
 }
 
 Game.prototype = {
 
-	colors: {
-		plateA: '#58758c',
-		//plateB: '#a3bbe0',
-		plateB: '#373b5b'
-	},
-
+	/* Current Level */
 	level: null,
 
-	levels: [
-		{
-			colors: [0,1,2,3,4,5],
-			tileScore: 5,
-			size: 8,
-			time:200
-		},
-		{
-			colors: [4,5,6,7,8,9],
-			tileScore: 5,
-			size: 8,
-			time:90
-		}
-	],
+	/* List of available levels */
+	levels: [],
 
+	/* Tile falling accelaration*/
 	acc: 0.3,
 
+	/* Swap tiles speed*/
 	swapSpeed: 4,
 
+	/**
+	* Swap tiles speed when tiles return to previous position 
+	* if no combination found
+	*/
 	fastSwapSpeed: 6,
 
+	/**
+	* Seconds of no activity after advice will show
+	*/
+	adviceTimeout: 10000,
+
+	/**
+	* Current Scores
+	*/
 	scores: 0,
 
+	/**
+	* Cell that hovered now
+	*/
 	activePoint: {
 		x:0, y:0
 	},
 
+	/**
+	* Active tile
+	* Tile become active after first click, 
+	* and then we wait for second click to check combinations
+	*/
 	activeTile: {
 		x:-999,
 		y:-999
 	},
 
-	lastFalled: null,
+	//backgound colors
+	colors: {
+		plateA: '#58758c',
+		plateB: '#373b5b'
+	},
 
-	allFalls: false,
-
-	MOUSE_HOLDED: false,
-
+	/**
+	* Columns that will be recalculated in next tick
+	*/
 	colsToUpdate: [],
 
+	/**
+	* Tiles that falling, we need update they speed and position
+	*/
 	fallingTiles: [],
 
+	/**
+	* Tiles that swapping at current moment (or empty if no swap now)
+	*/
 	swappingTiles: [],
 
+	/**
+	* ID of timer to reser it
+	*/
 	timerTimeout: null,
 	
+	/**
+	* Seconds to finish level
+	*/
 	timer:0,
 
+	/**
+	* This flag used after changing level - to draw 
+	* unique tiles, that not affect combo after first appearance
+	*/
 	startLevelUpdate: false,
 
+	/**
+	* Last click time, used for detecting inactive time for showing advice
+	*/
 	lastAction: new Date().getTime(),
+
+	/**
+	* Not random generated tiles for populating level after starting
+	*/
+	startTiles: [],
+
+	/**
+	* List of tiles that we need check for combo
+	*/
+	checkComboQueue: [],
+
+	/**
+	* If combo is running now
+	*/
+	comboIsRunning: false,
+
+	/**
+	* Used for mouse position
+	*/
+	MOUSE_HOLDED: false,
+
+
+	events: {
+		swapSuccess: function() {},
+		swapFail: function() {},
+		swapFinish: function() {},
+		
+		comboExplode: function() {},
+		multiComboExplode: function() {},
+
+		gameStart: function() {},
+		levelStart: function() {},
+
+		scoresAdded: function() {},
+		timeFinish: function() {},
+		win: function() {},
+		
+	},
+
+	trigger: function(event)
+	{
+		if( typeof this.events[event] !== 'undefined')
+		{
+			this.events[event]();
+		}
+	},
 
 	//Add columnto update list
 	//Used when some tile explode and we need add new tiles
@@ -133,6 +237,9 @@ Game.prototype = {
 		}
 	},
 
+	/**
+	* Load level 
+	*/
 	loadLevel: function(levelNum)
 	{	
 		if (typeof this.levels[levelNum] !== 'undefined')
@@ -162,6 +269,8 @@ Game.prototype = {
 		this.updateColsTiles([0,1,2,3,4,5,6,7]);
 
 		this.startLevelUpdate = true;
+
+		this.trigger('levelStart');
 	},
 
 	resetTimer: function()
@@ -171,13 +280,17 @@ Game.prototype = {
 		this.updateTimer();
 	},
 
+	/**
+	* Update time for level end
+	*/
 	updateTimer: function()
 	{
 		this.timer--;
 		if(this.timer < 0)
 		{
 			this.timer = 0;
-			//Trigger fiish time
+			this.trigger('timeFinish');
+			return;
 		}
 
 		this.drawTimer();
@@ -188,15 +301,15 @@ Game.prototype = {
 	},
 
 
-	startTiles: [],
+	/**
+	* Add start tile, and sure that color will not cause combo
+	*/
 	addStartTile: function(tile)
 	{	
 		if (typeof this.startTiles[tile.gridX] === 'undefined')
 		{
 			this.startTiles[tile.gridX] = [];
 		}
-
-		//tile.y = 20 + 10 + tile.gridY * 75;
 
 		var excludedColors = this.getUnsafeColors(tile);
 		if( excludedColors.length )
@@ -207,6 +320,9 @@ Game.prototype = {
 		this.startTiles[tile.gridX][tile.gridY] = tile;
 	},
 
+	/**
+	* Get colors that should not be used for tile to avoid combo
+	*/
 	getUnsafeColors: function(tile)
 	{
 		var excluded = [];
@@ -246,6 +362,9 @@ Game.prototype = {
 		return excluded;
 	},
 
+	/**
+	* Get safe color (just diff)
+	*/
 	generateSafeColor: function(excluded)
 	{
 		var safeColors = array_diff(this.level.colors,excluded);
@@ -253,6 +372,9 @@ Game.prototype = {
 		return safeColors[colorIdx];
 	},
 
+	/**
+	* Get start tile (null if not exists yet)
+	*/
 	getStartTile: function(x,y)
 	{	
 		if (typeof this.startTiles[x]    !== 'undefined' && 
@@ -264,6 +386,10 @@ Game.prototype = {
 		return null;
 	},
 
+
+	/**
+	* Generate tiles for start level without combos
+	*/
 	generateTiles: function()
 	{
 		var w = 8;
@@ -316,7 +442,6 @@ Game.prototype = {
 				this.addStartTile(this.generateTile(x,y));
 			}
 
-
 			//Corners
 			y = h/2-(level+1);
 			x = w/2-(level+1);
@@ -334,14 +459,12 @@ Game.prototype = {
 			y = h/2+(level);
 			x = w/2-(level+1);
 			this.addStartTile(this.generateTile(x,y));
-
-
 		}
-
 	},
 
-
-
+	/**
+	* Make all tiles empty, it will clear level visually
+	*/
 	clearTiles: function()
 	{
 		this.tiles = [];
@@ -356,6 +479,9 @@ Game.prototype = {
 
 	},
 
+	/**
+	* Return a tile with random color
+	*/
 	generateTile: function(x,y)
 	{
 		var colorIdx = rand(0,this.level.colors.length-1);
@@ -363,6 +489,10 @@ Game.prototype = {
 		return new Tile(color,x,y);
 	},
 
+
+	/**
+	* Return an empty tile
+	*/
 	generateEmptyTile: function(x,y)
 	{
 		var t = new Tile(0,x,y);
@@ -371,22 +501,27 @@ Game.prototype = {
 	},
 
 
+	/**
+	* Main game loop function
+	*/
 	animate: function()
 	{
+		//Redraw tiles only if update needed
 		if (this.update())
 		{
 			this.draw();
 		}
 
+		//If sccores changed from last update - redraw it
 		if( this.updateScores)
 		{
 			this.updateScores = false;
 			this.drawScores();
 		}
 
+		//Show advice when user not active
 		var now = new Date().getTime();
-		//10 sec timeout for advice
-		if( this.lastAction &&  now - this.lastAction > 10000) {
+		if( this.lastAction &&  now - this.lastAction > this.adviceTimeout) {
 			this.advice();
 		}
 
@@ -395,6 +530,11 @@ Game.prototype = {
 		}.bind(this),1000/60);
 	},
 
+
+	/**
+	* Find how many tiles was exploded in column
+	* and needs to be added
+	*/
 	checkTilesInColumn: function(column, startY, offset)
 	{
 		var missedTiles = 0;
@@ -414,6 +554,9 @@ Game.prototype = {
 	},
 
 
+	/**
+	* Swap tiles
+	*/
 	swapTiles: function(tileA, tileB, reverse) {
 		if (! tileA || ! tileB) 
 		{
@@ -454,16 +597,11 @@ Game.prototype = {
 		return false;
 	},
 
-
-	checkComboQueue: [],
-
+	/**
+	* Check available combo for tile
+	*/
 	checkForCombo: function(tile, forAdvice)
 	{
-		// if( this.comboIsRunning ) {
-		// 	this.checkComboQueue.push(tile);
-		// 	return;
-		// }
-
 		var dirs = [
 			{x:0,y:1},
 			{x:1,y:0}
@@ -545,6 +683,13 @@ Game.prototype = {
 					this.addScoreForCombo(combo.length);
 					updateCols.push(combo[c].x);
 				}
+
+				this.trigger('comboExplode', combo);
+			}
+
+			if (foundCombos.length > 1)
+			{
+				this.trigger('multiComboExplode', foundCombos.length);
 			}
 
 			this.runCombo();
@@ -556,16 +701,18 @@ Game.prototype = {
 		
 	},
 
-	comboIsRunning: false,
-
+	
+	//Run combo
 	runCombo: function()
 	{
 		this.DISABLE_MOUSE = true;
 		this.comboIsRunning = true;
 	},
 
+	//Stop combo
 	endCombo: function()
 	{
+		//AFter and of comboe we recheck column for new combos
 		for(var i=0; i<this.colsToCheck.length;i++)
 		{
 			this.checkColumnForCombo(this.colsToCheck[i]);
@@ -575,6 +722,9 @@ Game.prototype = {
 		this.comboIsRunning = false;
 	},
 
+	/**
+	* Check column for new combos
+	*/
 	checkColumnForCombo: function(x)
 	{
 		for (var y = 7; y >= 0; y--)
@@ -586,6 +736,11 @@ Game.prototype = {
 		}
 	},
 
+
+	/**
+	* Add scores for combo
+	* @var comboLength How many tiles was exploded
+	*/
 	addScoreForCombo: function(comboLength)
 	{
 		var scoreForTile = this.level.tileScore;
@@ -594,10 +749,20 @@ Game.prototype = {
 			scoreForTile = Math.round(scoreForTile * comboLength/2);
 		}
 
+		this.trigger('scoresAdded');
 		this.scores += scoreForTile;
+
+		if (this.scores >= this.level.winScore) {
+			this.trigger('win');
+		}
+
 		this.updateScores = true;
 	},
 
+
+	/**
+	* Calculate and show adviced tile for user
+	*/
 	advice: function()
 	{
 		this.hideAdvice();
@@ -615,18 +780,24 @@ Game.prototype = {
 		}
 	},
 
+	/** Hide advice */
 	hideAdvice: function()
 	{
 		this.drawAdvice = false;
 		this.drawActiveTile();
 	},
 
+	/** Show advice */
 	showAdvice: function(x,y)
 	{
 		this.drawAdvice = {x:x,y:y};		
 		this.drawActiveTile();
 	},
 
+
+	/**
+	* Check possible combos for tile
+	*/
 	checkPossibleCombo: function(x,y)
 	{
 		var tile = this.getTile(x,y);
@@ -666,13 +837,13 @@ Game.prototype = {
 
 	onTileFall: function(tile)
 	{
-		//console.log(tile)
 		
-		//this.checkComboQueue.push(tile)
-		
-		//this.checkForCombo(tile);
 	},
 
+
+	/**
+	* Get tile by grid position
+	*/
 	getTile: function(x,y)
 	{
 		if(typeof this.tiles[x] !== 'undefined' && typeof this.tiles[x][y] !== 'undefined')
@@ -682,6 +853,10 @@ Game.prototype = {
 		return null;
 	},
 
+
+	/**
+	* Function update current values and check if if need redraw something
+	*/
 	update: function()
 	{
 
@@ -785,7 +960,7 @@ Game.prototype = {
 			}
 		}
 
-
+		//Check combos
 		if (this.checkComboQueue.length )
 		{
 			for(var i = 0; i < this.checkComboQueue.length; i++)
@@ -796,6 +971,7 @@ Game.prototype = {
 			this.checkComboQueue = [];
 		}
 
+		//Process falling tiles
 		if (this.fallingTiles.length)
 		{	
 			var newFallingTiles = [];
@@ -837,7 +1013,7 @@ Game.prototype = {
 					tile.falling = false;
 					tile.speedY = 0;
 					tile.foundUpper = false;
-
+					//Tile fall
 					this.onTileFall(tile);
 
 				} else {
@@ -855,7 +1031,7 @@ Game.prototype = {
 			}
 		}
 
-
+		//Swapping tiles update
 		if (this.swappingTiles.length)
 		{	
 			var finish = false;
@@ -894,6 +1070,8 @@ Game.prototype = {
 			
 			if (finish)
 			{
+				this.trigger('swapFinish');
+
 				var tileA = this.swappingTiles[0];
 				var tileB = this.swappingTiles[1];
 
@@ -907,11 +1085,13 @@ Game.prototype = {
 					var comboA = this.checkForCombo(tileA);
 					var comboB = this.checkForCombo(tileB);
 					if(comboA || comboB) {
+						this.trigger('swapSuccess');
 						if( this.drawAdvice ) {
 							this.hideAdvice();
 						}
 
 					} else {
+						this.trigger('swapFail');
 						game.swapTiles(tileB, tileA, true);	
 					}
 					
@@ -923,14 +1103,7 @@ Game.prototype = {
 
 		}
 
-		
-
 		return needRedraw;
-
-//		if (this.MOUSE_HOLDED)
-//		{
-//			return true;
-//		}
 	},
 
 
@@ -942,10 +1115,11 @@ Game.prototype = {
 			return;
 		}
 
-		if(this.activeTile) {
+		if (this.activeTile)
+		{
 
-			if( this.selectedTile ) {
-				
+			if (this.selectedTile)
+			{
 				this.lastAction = new Date().getTime();
 
 				this.swapTiles(
@@ -954,51 +1128,54 @@ Game.prototype = {
 				);
 
 				this.selectedTile = null;
-
-			} else {
+			}
+			else
+			{
 				this.selectedTile = {
 					x: this.activeTile.x,
 					y: this.activeTile.y
-				}
+				};
 			}
 
 			this.drawActiveTile();
-
-			//this.tiles[this.activeTile.x][this.activeTile.y].empty = true;	
-			//this.updateColsTiles([this.activeTile.x]);
 		}
 	},
 
-	
+	/**
+	* Draw game background
+	*/
 	drawBackground: function()
 	{
-		//Draw levelx
 		this.layers.back.setProperties({ fillStyle: '#777' });
 		this.layers.back.fillRect(
 			0,0,this.width,this.height
 		);
 
+		//Draw grid background
 		this.layers.back.setProperties({ fillStyle: this.colors.plateA });
 		this.layers.back.fillRect(
 			20,20,600,600
 		);
 
+		//Draw cells
 		this.layers.back.setProperties({ fillStyle: this.colors.plateB });
 		for(var x = 0; x < 8; x++)
 		{
 			for(var y = 0; y < 8; y++)
 			{
-				
 				this.layers.back.fillRect(
 					21 + x * 75, 21 + y * 75,
 					73,73
 				);
-				
 			}
 		}
 
 	},
 
+
+	/**
+	* Draw tile
+	*/
 	drawTile: function(x,y)
 	{
 		var tile = this.tiles[x][y];
@@ -1007,6 +1184,11 @@ Game.prototype = {
 			return;
 		}
 
+		/**
+		* For drawing tile you shoud add 
+		* 100x100 image in availbale tiles image
+		* and it position will be COLOR
+		*/
 		this.layers.squares.drawImage(
 			this.images.tiles,
 			100 * tile.color, 0,
@@ -1017,6 +1199,9 @@ Game.prototype = {
 
 	},
 
+	/**
+	* Draw tiles on grid
+	*/
 	draw: function()
 	{
 		var tile;
@@ -1030,6 +1215,10 @@ Game.prototype = {
 		}
 	},
 
+
+	/**
+	* Draw active tile, selected tile and advice tile
+	*/
 	drawActiveTile: function() {
 		
 		this.layers.cursor.empty();
@@ -1056,10 +1245,6 @@ Game.prototype = {
 			);
 		}
 
-
-		
-
-
 		if( this.activeTile ) {
 			this.layers.cursor.setProperties({ fillStyle: '#fff' });
 			this.layers.cursor.fillRect(
@@ -1072,18 +1257,26 @@ Game.prototype = {
 		}
 	},
 
-
+	/**
+	* Update scores in HMTL
+	*/
 	drawScores: function()
 	{
 		$('scores-value').innerHTML = this.scores
 	},
 
+	/**
+	* Update timer in HMTL
+	*/
 	drawTimer: function()
 	{
 
 		$('timer-value').innerHTML = this.formatTime(this.timer);
 	},
 
+	/**
+	* Format seconds to readable format
+	*/
 	formatTime: function(time)
 	{
 		var t = Math.floor(time/60) + ':';
@@ -1095,6 +1288,9 @@ Game.prototype = {
 		return t + min;
 	},
 
+	/**
+	* Add listeners for game engine
+	*/
 	addListeners: function()
 	{	
 		
@@ -1150,6 +1346,9 @@ Game.prototype = {
 
 	},
 
+	/**
+	* Update active point after cursor position change
+	*/
 	updateActivePoint: function(e)
 	{
 		//Calculate ratio to allow resize canvas and keep track right mouse position related canvas
@@ -1186,15 +1385,15 @@ Game.prototype = {
 
 	},
 
+	/**
+	* onResize callback
+	*/
 	onResize: function()
 	{
 
 		var widthToHeight = 5/4;
 		var newWidth = window.innerWidth;
 		var newHeight = window.innerHeight;
-
-		console.log( newHeight );
-		console.log( newWidth );
 
 		var newWidthToHeight = newWidth / newHeight;
 
@@ -1219,10 +1418,5 @@ Game.prototype = {
 		this.offsetLeft = this.wrapper.offsetLeft;
 
 	},
-
-	win: function()
-	{
-		
-	}
 
 };
