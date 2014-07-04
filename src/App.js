@@ -64,7 +64,7 @@ function Game(width, height,options)
 	
 	//Iages and tiles used in game
 	this.images = {
-		tiles: $('img-tiles'),
+		tiles: $('img-tiles')
 		
 	};
 
@@ -729,7 +729,7 @@ Game.prototype = {
 			//Add current tile to tiles used in combo
 			var comboTiles = [{
 				x:tile.gridX,
-				y:tile.gridY,
+				y:tile.gridY
 			}];
 
 			while( t = this.getTile(tile.gridX + comboStep*d.x, tile.gridY + comboStep * d.y) )
@@ -883,7 +883,6 @@ Game.prototype = {
 			{
 				if( this.checkPossibleCombo(x,y) )
 				{
-					//console.log('Advice is ' + x +' '+y)
 					this.showAdvice(x,y);
 					return;
 				}
@@ -926,7 +925,8 @@ Game.prototype = {
 				}
 
 				t = this.getTile(x+dx, y+dy);
-				if(t) {
+				if (t)
+				{
 					tile.color = t.color;
 					t.color = originColor;
 
@@ -1103,7 +1103,7 @@ Game.prototype = {
 						upperTile.speedY = 0;
 						newFallingTiles.push({
 							x: upperTile.gridX,
-							y: upperTile.gridY,
+							y: upperTile.gridY
 						});
 					}
 				}
@@ -1561,6 +1561,6 @@ Game.prototype = {
 		this.offsetTop = this.wrapper.offsetTop;
 		this.offsetLeft = this.wrapper.offsetLeft;
 
-	},
+	}
 
 };
