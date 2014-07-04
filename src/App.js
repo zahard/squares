@@ -109,6 +109,8 @@ Game.prototype = {
 	
 	timer:0,
 
+	startLevelUpdate: false,
+
 	lastAction: new Date().getTime(),
 
 	//Add columnto update list
@@ -151,8 +153,15 @@ Game.prototype = {
 
 		this.drawScores();
 		this.drawTimer();
+		this.clearTiles();
 		this.generateTiles();
+		
+
+		this.draw();
+
 		this.updateColsTiles([0,1,2,3,4,5,6,7]);
+
+		this.startLevelUpdate = true;
 	},
 
 	resetTimer: function()
@@ -178,7 +187,162 @@ Game.prototype = {
 		}.bind(this),1000);
 	},
 
+
+	startTiles: [],
+	addStartTile: function(tile)
+	{	
+		if (typeof this.startTiles[tile.gridX] === 'undefined')
+		{
+			this.startTiles[tile.gridX] = [];
+		}
+
+		//tile.y = 20 + 10 + tile.gridY * 75;
+
+		var excludedColors = this.getUnsafeColors(tile);
+		if( excludedColors.length )
+		{
+			tile.color = this.generateSafeColor(excludedColors)
+		}
+
+		this.startTiles[tile.gridX][tile.gridY] = tile;
+	},
+
+	getUnsafeColors: function(tile)
+	{
+		var excluded = [];
+		var sx = tile.gridX;
+		var sy = tile.gridY;
+		var color;
+		var leveOne;
+		var leveTwo;
+
+		for (var i = 0; i < this.level.colors.length; i++)
+		{
+			color = this.level.colors[i];
+			//go throught 4 directions
+			for(var dx = -1; dx <= 1; dx++)
+			{
+				for(var dy = -1; dy <= 1; dy++)
+				{
+					if( Math.abs(dy + dx) != 1) continue;
+
+					//Check near tile
+					levelOne = this.getStartTile(sx + dx, sy + dy);
+
+					//if itle exists check for color
+					if (levelOne && levelOne.color == color){
+						//if first ile has same color check 2nd tile
+						// maybe it will also the same
+						levelTwo = this.getStartTile(sx + dx*2, sy + dy*2);
+						if (levelTwo && levelTwo.color == color){
+							excluded.push(color);
+						}
+					}
+					
+				}
+			}
+		}
+
+		return excluded;
+	},
+
+	generateSafeColor: function(excluded)
+	{
+		var safeColors = array_diff(this.level.colors,excluded);
+		var colorIdx = rand(0,safeColors.length-1);
+		return safeColors[colorIdx];
+	},
+
+	getStartTile: function(x,y)
+	{	
+		if (typeof this.startTiles[x]    !== 'undefined' && 
+			typeof this.startTiles[x][y] !== 'undefined')
+		{
+			return this.startTiles[x][y];
+		}
+
+		return null;
+	},
+
 	generateTiles: function()
+	{
+		var w = 8;
+		var h = 8;
+		var x;
+		var y;
+		var base = [
+			[w/2-1,h/2-1],
+			[w/2-1,h/2],
+			[w/2,h/2-1],
+			[w/2,h/2]
+		];
+
+		//Create base of random tile in map center
+		for (var i=0;i<base.length;i++)
+		{
+			this.addStartTile(this.generateTile(base[i][0],base[i][1]));
+		}
+
+		var max_level = w/2;
+		//max_level = 2;
+		for (var level = 1; level < max_level; level++)
+		{
+			
+			//Top
+			y = h/2-(level+1);
+			for(x = w/2-(level); x < w/2 + (level); x++)
+			{
+				this.addStartTile(this.generateTile(x,y));
+			}
+
+			//bottom
+			y = h/2+(level);
+			for(x = w/2-(level); x < w/2 + (level); x++)
+			{
+				this.addStartTile(this.generateTile(x,y));
+			}
+
+			//left
+			x = w/2-(level+1);
+			for(y = h/2 - level; y < h/2 + level; y++)
+			{
+				this.addStartTile(this.generateTile(x,y));
+			}
+
+			//right
+			x = w/2+(level);
+			for(y = h/2 - level; y < h/2 + level; y++)
+			{
+				this.addStartTile(this.generateTile(x,y));
+			}
+
+
+			//Corners
+			y = h/2-(level+1);
+			x = w/2-(level+1);
+			this.addStartTile(this.generateTile(x,y));
+
+			y = h/2+(level);
+			x = w/2+(level);
+			this.addStartTile(this.generateTile(x,y));
+
+
+			y = h/2-(level+1);
+			x = w/2+(level);
+			this.addStartTile(this.generateTile(x,y));
+
+			y = h/2+(level);
+			x = w/2-(level+1);
+			this.addStartTile(this.generateTile(x,y));
+
+
+		}
+
+	},
+
+
+
+	clearTiles: function()
 	{
 		this.tiles = [];
 		for (var x=0;x<8;x++)
@@ -568,7 +732,16 @@ Game.prototype = {
 				var newTile;
 				for(var y = 7; y >= 8 - missedTiles; y--)
 				{
-					newTile = this.generateTile(x,y);
+					if (!this.startLevelUpdate)
+					{
+						newTile = this.generateTile(x,y);
+					}
+					else
+					{
+						//For init unique tiles
+						newTile = this.getStartTile(x,y);
+					}
+
 					newTile.y = dy;
 					newColumn.push(newTile);
 					dy -= 55;
@@ -605,6 +778,11 @@ Game.prototype = {
 
 			this.colsToCheck = this.colsToUpdate;
 			this.colsToUpdate = [];
+
+			if (this.startLevelUpdate)
+			{
+				this.startLevelUpdate = false;
+			}
 		}
 
 
